@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>叫我father</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9fafb;
+            transition: background-color 0.5s;
+            text-align: center;
+        }
+
+        .emoji {
+            font-size: 6rem;
+            margin-bottom: 2rem;
+            transition: transform 0.3s;
+        }
+    
+        .emoji:hover {
+            transform: scale(1.1);
+        }
+    
+        h1 {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 3rem;
+            color: #1f2937;
+        }
+    
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 80%;
+            max-width: 300px;
+        }
+    
+        button {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 9999px;
+            font-size: 1.125rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+    
+        .btn-accept {
+            background-color: #60a5fa;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    
+        .btn-accept:hover:not(:disabled) {
+            background-color: #3b82f6;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    
+        .btn-reject {
+            background-color: #e5e7eb;
+            color: #1f2937;
+        }
+    
+        .btn-reject:hover:not(:disabled) {
+            background-color: #d1d5db;
+        }
+    
+        button:disabled {
+            background-color: #d1d5db;
+            cursor: not-allowed;
+        }
+    
+        .message {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 0.5rem;
+            max-width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+            animation: fadeIn 0.5s;
+            display: none;
+        }
+    
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    
+        body.accepted {
+            background-color: #bfdbfe;
+        }
+    </style>
+</head>
+<body>
+    <div class="emoji">👶</div>
+    <h1>我可以成为你爸爸吗？</h1>
+    
+    <div class="buttons">
+        <button class="btn-accept" onclick="handleAccept()">❤️ 同意 ❤️</button>
+        <button class="btn-reject" onclick="handleReject()" id="rejectBtn">不要</button>
+    </div>
+    
+    <div class="message" id="message"></div>
+    
+    <script>
+        let rejectCount = 0;
+        const rejectMessages = [
+            "这样不太合适吧...",
+            "你敢拒绝我咬死你",
+            "这个玩笑不好笑",
+            "你再这样我要生气了",
+            "最后一次警告...",
+            "😠 拒绝！永远不可能！"
+        ];
+        
+        const emojis = [
+            "👶", "😢", "😥", "😓", "😰", "😨",
+            "😖", "😣", "😞", "😟", "😠", "😡", "👺"
+        ];
+        
+        let currentEmoji = "👶";
+        let isAccepted = false;
+    
+        function showMessage(msg) {
+            const el = document.getElementById("message");
+            el.textContent = msg;
+            el.style.display = "block";
+            setTimeout(() => {
+                if (!isAccepted) el.style.display = "none";
+            }, 3000);
+        }
+    
+        function handleReject() {
+            if (rejectCount < rejectMessages.length) {
+                showMessage(rejectMessages[rejectCount]);
+                
+                if (rejectCount === rejectMessages.length - 1) {
+                    currentEmoji = "😠";
+                } else {
+                    const availableEmojis = emojis.filter(e => e !== currentEmoji && e !== "😠");
+                    currentEmoji = availableEmojis[Math.floor(Math.random() * availableEmojis.length)];
+                }
+                
+                document.querySelector(".emoji").textContent = currentEmoji;
+                rejectCount++;
+                
+                if (rejectCount >= rejectMessages.length) {
+                    document.getElementById("rejectBtn").disabled = true;
+                }
+            }
+        }
+    
+        function handleAccept() {
+            isAccepted = true;
+            document.body.classList.add("accepted");
+            showMessage("太好了！从现在开始我就是你爸爸了！🎉");
+            document.querySelector(".emoji").textContent = "👨";
+            document.querySelector(".btn-accept").disabled = true;
+            document.getElementById("rejectBtn").disabled = true;
+        }
+    </script>
+</body>
+</html>
