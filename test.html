@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单手势圣诞树</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body { 
+            background: #0c1a2d; 
+            color: white;
+            font-family: Arial;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .header {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+        }
+        h1 { color: #2ee59d; font-size: 1.5rem; }
+        #scene { flex: 1; position: relative; }
+        #camera-area {
+            height: 180px;
+            background: black;
+            position: relative;
+            border-top: 3px solid #2ee59d;
+        }
+        video, canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        canvas { position: absolute; top: 0; left: 0; }
+        .controls {
+            padding: 10px;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            background: #2ee59d;
+            border: none;
+            color: #0c1a2d;
+            font-weight: bold;
+            border-radius: 20px;
+        }
+        .status {
+            padding: 10px;
+            text-align: center;
+            font-size: 1.2rem;
+        }
+        #debug {
+            padding: 10px;
+            background: rgba(255,0,0,0.1);
+            font-size: 0.8rem;
+            display: none;
+        }
+        .gesture-emoji {
+            font-size: 2rem;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎄 简单手势测试</h1>
+            <p id="subtitle">点击"开始"后，请允许摄像头权限</p>
+        </div>
+        
+        <div id="scene">
+            <!-- 3D场景将通过Three.js渲染到这里 -->
+        </div>
+        
+        <div class="status">
+            <div id="status-text">准备中...</div>
+            <div class="gesture-emoji" id="gesture-emoji">🖐️</div>
+        </div>
+        
+        <div id="camera-area">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div id="debug">
+            调试信息: <span id="debug-text">等待启动</span>
+        </div>
+        
+        <div class="controls">
+            <button id="start-btn">🚀 开始识别</button>
+            <button id="debug-btn">🐛 调试模式</button>
+        </div>
+    </div>
+
+    <!-- 仅加载最必要的库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    
+    <script>
+        // 调试模式
+        let debugMode = false;
+        const debugEl = document.getElementById('debug');
+        const debugText = document.getElementById('debug-text');
+        
+        // 状态显示
+        const statusText = document.getElementById('status-text');
+        const gestureEmoji = document.getElementById('gesture-emoji');
+        const subtitle = document.getElementById('subtitle');
+        
+        // 手势状态
+        let currentGesture = 'none';
+        let hands = null;
+        let camera = null;
+        
+        // 初始化Three.js简单场景
+        function initSimpleScene() {
+            const sceneEl = document.getElementById('scene');
+            
+            // 创建场景
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a192f);
+            
+            // 相机
+            const camera = new THREE.PerspectiveCamera(75, sceneEl.clientWidth / sceneEl.clientHeight, 0.1, 1000);
+            camera.position.z = 15;
+            
+            // 渲染器
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(sceneEl.clientWidth, sceneEl.clientHeight);
+            sceneEl.appendChild(renderer.domElement);
+            
+            // 创建简单圣诞树（使用基础几何体）
+            createSimpleTree(scene);
+            
+            // 环境光
+            const light = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(light);
+            
+            // 方向光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 0);
+            scene.add(directionalLight);
+            
+            // 动画循环
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
+            
+            updateDebug('3D场景初始化完成');
+        }
+        
+        function createSimpleTree(scene) {
+            // 树干
+            const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.7, 3, 8);
+            const trunkMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = -3;
+            scene.add(trunk);
+            
+            // 树冠（三层）
+            const treeColors = [0x2ecc71, 0x27ae60, 0x229954];
+            for(let i = 0; i < 3; i++) {
+                const coneGeometry = new THREE.ConeGeometry(2 + i * 0.5, 3, 8);
+                const coneMaterial = new THREE.MeshPhongMaterial({ color: treeColors[i] });
+                const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+                cone.position.y = i * 2.5;
+                scene.add(cone);
+            }
+            
+            // 装饰球
+            const ballColors = [0xe74c3c, 0xf1c40f, 0x3498db, 0x9b59b6];
+            for(let i = 0; i < 8; i++) {
+                const ballGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+                const ballMaterial = new THREE.MeshPhongMaterial({ color: ballColors[i % 4] });
+                const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+                
+                const angle = (i / 8) * Math.PI * 2;
+                const radius = 1.2;
+                ball.position.x = Math.cos(angle) * radius;
+                ball.position.z = Math.sin(angle) * radius;
+                ball.position.y = -1 + i * 0.8;
+                
+                scene.add(ball);
+            }
+        }
+        
+        // 初始化手势识别
+        function initHandTracking() {
+            updateStatus('正在初始化手势识别...', '⚙️');
+            
+            hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }
+            });
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 0,  // 使用轻量模型
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5,
+                selfieMode: true
+            });
+            
+            hands.onResults(onResults);
+            
+            // 启动摄像头
+            startCamera();
+        }
+        
+        function startCamera() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置画布尺寸
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+            
+            navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 320 },
+                    height: { ideal: 240 }
+                }
+            }).then(stream => {
+                video.srcObject = stream;
+                
+                camera = new Camera(video, {
+                    onFrame: async () => {
+                        await hands.send({ image: video });
+                    },
+                    width: 320,
+                    height: 240
+                });
+                
+                camera.start();
+                
+                updateStatus('摄像头已启动！请将手放在画面中', '📱');
+                updateDebug('摄像头启动成功');
+                
+            }).catch(err => {
+                updateStatus('摄像头访问失败: ' + err.message, '❌');
+                updateDebug('摄像头错误: ' + err.message);
+            });
+        }
+        
+        function onResults(results) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if(results.image) {
+                ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+            }
+            
+            if(results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                // 绘制手部关键点（简单版）
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // 绘制所有关键点
+                for(let i = 0; i < landmarks.length; i++) {
+                    const x = landmarks[i].x * canvas.width;
+                    const y = landmarks[i].y * canvas.height;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#2ee59d';
+                    ctx.fill();
+                }
+                
+                // 检测手势（简化逻辑）
+                detectSimpleGesture(landmarks);
+                
+                if(debugMode) {
+                    updateDebug(`检测到手部，关键点数量: ${landmarks.length}`);
+                }
+            } else {
+                currentGesture = 'none';
+                updateGestureDisplay();
+                
+                if(debugMode) {
+                    updateDebug('未检测到手部');
+                }
+            }
+        }
+        
+        function detectSimpleGesture(landmarks) {
+            if(!landmarks || landmarks.length < 21) return;
+            
+            // 获取关键点索引
+            const landmarksIndex = {
+                wrist: 0,
+                thumb: [1, 2, 3, 4],
+                index: [5, 6, 7, 8],
+                middle: [9, 10, 11, 12],
+                ring: [13, 14, 15, 16],
+                pinky: [17, 18, 19, 20]
+            };
+            
+            // 指尖点
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const middleTip = landmarks[12];
+            const ringTip = landmarks[16];
+            const pinkyTip = landmarks[20];
+            
+            // 判断手指是否伸直（简单方法：y坐标比较）
+            const isIndexStraight = indexTip.y < landmarks[6].y;
+            const isMiddleStraight = middleTip.y < landmarks[10].y;
+            const isRingStraight = ringTip.y < landmarks[14].y;
+            const isPinkyStraight = pinkyTip.y < landmarks[18].y;
+            
+            let gesture = 'none';
+            
+            // 手势判断逻辑
+            if(isIndexStraight && isMiddleStraight && isRingStraight && isPinkyStraight) {
+                gesture = 'open';
+            } else if(!isIndexStraight && !isMiddleStraight && !isRingStraight && !isPinkyStraight) {
+                gesture = 'closed';
+            } else if(isIndexStraight && !isMiddleStraight && !isRingStraight && !isPinkyStraight) {
+                gesture = 'pointing';
+            } else if(isIndexStraight && isMiddleStraight && !isRingStraight && !isPinkyStraight) {
+                gesture = 'victory';
+            }
+            
+            // 更新手势显示
+            if(gesture !== currentGesture) {
+                currentGesture = gesture;
+                updateGestureDisplay();
+            }
+        }
+        
+        function updateGestureDisplay() {
+            const gestureInfo = {
+                'none': { text: '等待手势...', emoji: '🖐️', color: '#a3d9ff' },
+                'open': { text: '张开手掌', emoji: '✋', color: '#2ee59d' },
+                'closed': { text: '握紧拳头', emoji: '✊', color: '#ff6b6b' },
+                'pointing': { text: '伸出食指', emoji: '👆', color: '#ffd166' },
+                'victory': { text: '剪刀手', emoji: '✌️', color: '#9d4edd' }
+            };
+            
+            const info = gestureInfo[currentGesture] || gestureInfo.none;
+            
+            statusText.textContent = info.text;
+            statusText.style.color = info.color;
+            gestureEmoji.textContent = info.emoji;
+            
+            if(debugMode) {
+                updateDebug(`手势: ${info.text}`);
+            }
+        }
+        
+        function updateStatus(text, emoji) {
+            statusText.textContent = text;
+            if(emoji) gestureEmoji.textContent = emoji;
+        }
+        
+        function updateDebug(text) {
+            debugText.textContent = text;
+        }
+        
+        // 页面加载
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化场景
+            initSimpleScene();
+            
+            // 按钮事件
+            document.getElementById('start-btn').addEventListener('click', () => {
+                subtitle.textContent = '请确保允许摄像头权限';
+                initHandTracking();
+            });
+            
+            document.getElementById('debug-btn').addEventListener('click', () => {
+                debugMode = !debugMode;
+                debugEl.style.display = debugMode ? 'block' : 'none';
+                updateDebug('调试模式 ' + (debugMode ? '开启' : '关闭'));
+            });
+            
+            // 初始状态
+            updateStatus('点击"开始识别"按钮启动', '▶️');
+        });
+    </script>
+</body>
+</html>
